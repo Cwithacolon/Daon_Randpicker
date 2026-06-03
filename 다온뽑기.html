@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>다온 뽑기 프로그램</title>
+    <style>
+        :root { --primary: #3b82f6; --bg: #f3f4f6; --card: #ffffff; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { max-width: 600px; width: 100%; background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { text-align: center; color: #1f2937; margin-top: 0; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; color: #4b5563; }
+        input, button { padding: 10px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 16px; }
+        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
+        .rank-input { display: flex; gap: 10px; margin-bottom: 8px; }
+        .rank-input input { flex: 1; }
+        .status-box { background: #eff6ff; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary); margin-top: 15px; }
+        .result-display { font-size: 32px; text-align: center; font-weight: bold; color: #ef4444; margin: 20px 0; min-height: 48px; }
+        .reset-btn { background: #ef4444; margin-top: 20px; }
+        .history { max-height: 150px; overflow-y: auto; background: #f9fafb; padding: 10px; border-radius: 6px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎟️ 뽑기 설정</h1>
+    
+    <div class="form-group">
+        <label for="totalParticipants">총 참여 학생 수 (명)</label>
+        <input type="number" id="totalParticipants" min="1" value="30">
+    </div>
+
+    <div class="form-group">
+        <label for="maxRank">최대 등수 설정 (예: 3을 적으면 3등까지)</label>
+        <input type="number" id="maxRank" min="1" max="10" value="3" onchange="generateRankInputs()">
+    </div>
+
+    <div id="rankInputsContainer">
+        </div>
+
+    <button onclick="initLottery()">설정 저장 및 뽑기 리셋</button>
+</div>
+
+<div class="container">
+    <h2>🎯 뽑기 진행</h2>
+    <div class="status-box">
+        <div>남은 총 뽑기 기회: <span id="statLeft">0</span> / <span id="statTotal">0</span></div>
+        <div id="rankStats"></div>
+    </div>
+
+    <div class="result-display" id="currentResult">대기 중...</div>
+    <button style="width: 100%; padding: 15px; font-size: 20px;" onclick="draw()">🎉 뽑기! 🎉</button>
+    
+    <h3>이전 뽑기 기록</h3>
+    <div class="history" id="historyLog"></div>
+
+    <button class="reset-btn" style="width: 100%;" onclick="fullReset()">전체 초기화 (데이터 삭제)</button>
+</div>
+
+<script>
+    // 페이지 로드 시 기존 데이터 복구 혹은 초기화
+    window.onload = function() {
+        if (localStorage.getItem('lottery_pool')) {
+            loadState();
+        } else {
+            generateRankInputs();
+        }
+    };
+
+    // 등수 입력 필드 동적 생성
+    function generateRankInputs() {
+        const maxRank = document.getElementById('maxRank').value;
+        const container = document.getElementById('rankInputsContainer');
+        container.innerHTML = '<label>등수별 당첨 인원 설정</label>';
+        
+        for (let i = 1; i <= maxRank; i++) {
+            const savedValue = localStorage.getItem(`config_rank_${i}`) || (i === 1 ? 1 : 2); // 기본값 예시
+            container.innerHTML += `
+                <div class="rank-input">
+                    <input type="text" value="${i}등 상품" readonly style="background:#e5e7eb; max-width:100px; text-align:center;">
+                    <input type="number" id="rankCount_${i}" min="0" value="${savedValue}" placeholder="당첨 인원 수">
+                </div>
+            `;
+        }
+    }
+
+    // 뽑기 시스템 초기화 (풀 생성)
+    function initLottery() {
+        const total = parseInt(document.getElementById('totalParticipants').value);
+        const maxRank = parseInt(document.getElementById('maxRank').value);
+        
+        let pool = [];
+        let prizeCount = 0;
+
+        // 등수별 데이터 수집
+        for (let i = 1; i <= maxRank; i++) {
+            const count = parseInt(document.getElementById(`rankCount_${i}`).value) || 0;
+            prizeCount += count;
+            localStorage.setItem(`config_rank_${i}`, count); // 입력값 저장
+            for (let j = 0; j < count; j++) {
+                pool.push(`${i}등 상품`);
+            }
+        }
+
+        if (prizeCount > total) {
+            alert("⚠️ 오류: 상품 총합이 총 참여 학생 수보다 많습니다!");
+            return;
+        }
+
+        // 남은 자리는 '다음 기회에(꽝)'로 채우기
+        const blankCount = total - prizeCount;
+        for (let i = 0; i < blankCount; i++) {
+            pool.push("다음 기회에... (꽝)");
+        }
+
+        // 로컬스토리지에 초기 상태 저장
+        localStorage.setItem('lottery_total', total);
+        localStorage.setItem('lottery_maxRank', maxRank);
+        localStorage.setItem('lottery_pool', JSON.stringify(pool));
+        localStorage.setItem('lottery_history', JSON.stringify([]));
+
+        loadState();
+        alert("설정이 저장되었습니다! 이제 뽑기를 진행할 수 있습니다.");
+    }
+
+    // 로컬스토리지에서 데이터 불러와서 화면 갱신
+    function loadState() {
+        const total = localStorage.getItem('lottery_total');
+        const maxRank = localStorage.getItem('lottery_maxRank');
+        const pool = JSON.parse(localStorage.getItem('lottery_pool'));
+        const history = JSON.parse(localStorage.getItem('lottery_history')) || [];
+
+        document.getElementById('totalParticipants').value = total;
+        document.getElementById('maxRank').value = maxRank;
+        generateRankInputs();
+
+        // UI 업데이트
+        document.getElementById('statLeft').innerText = pool.length;
+        document.getElementById('statTotal').innerText = total;
+
+        // 등수별 남은 수량 계산
+        const counts = {};
+        pool.forEach(item => counts[item] = (counts[item] || 0) + 1);
+
+        let statHtml = "";
+        for(let key in counts) {
+            statHtml += `<div>${key}: <strong>${counts[key]}</strong>개 남음</div>`;
+        }
+        document.getElementById('rankStats').innerHTML = statHtml;
+
+        // 기록창 업데이트
+        const historyLog = document.getElementById('historyLog');
+        historyLog.innerHTML = history.map((h, i) => `<div>[${history.length - i}번째 뽑기] ${h}</div>`).join('');
+    }
+
+    // 뽑기 실행
+    function draw() {
+        let pool = JSON.parse(localStorage.getItem('lottery_pool'));
+        let history = JSON.parse(localStorage.getItem('lottery_history')) || [];
+
+        if (!pool || pool.length === 0) {
+            alert("뽑을 수 있는 기회가 없습니다. 설정을 먼저 진행해주세요.");
+            return;
+        }
+
+        // 랜덤 추출
+        const randomIndex = Math.floor(Math.random() * pool.length);
+        const result = pool.splice(randomIndex, 1)[0]; // 뽑은 아이템 풀에서 제거
+
+        // 결과 반영 및 역사 저장
+        history.unshift(result); // 최신 결과를 앞으로
+        document.getElementById('currentResult').innerText = result;
+
+        localStorage.setItem('lottery_pool', JSON.stringify(pool));
+        localStorage.setItem('lottery_history', JSON.stringify(history));
+
+        loadState(); // 화면 새로고침
+    }
+
+    // 전체 리셋
+    function fullReset() {
+        if(confirm("모든 데이터와 진행 상황이 삭제됩니다. 초기화하시겠습니까?")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+</script>
+</body>
+</html>
