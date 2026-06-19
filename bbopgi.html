@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko"> //test
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -28,12 +28,12 @@
     <h1>🎟️ 뽑기 설정</h1>
     
     <div class="form-group">
-        <label for="totalParticipants">총 참여 학생 수 (명)</label>
+        <label for="totalParticipants">전체 확률</label>
         <input type="number" id="totalParticipants" min="1" value="30">
     </div>
 
     <div class="form-group">
-        <label for="maxRank">최대 등수 설정 (예: 3을 적으면 3등까지)</label>
+        <label for="maxRank">상품 등수 설정</label>
         <input type="number" id="maxRank" min="1" max="10" value="3" onchange="generateRankInputs()">
     </div>
 
@@ -112,7 +112,7 @@
         // 남은 자리는 '다음 기회에(꽝)'로 채우기
         const blankCount = total - prizeCount;
         for (let i = 0; i < blankCount; i++) {
-            pool.push("다음 기회에... (꽝)");
+            pool.push("꽝 (다시 뽑으세요)");
         }
 
         // 로컬스토리지에 초기 상태 저장
@@ -146,7 +146,7 @@
 
         let statHtml = "";
         for(let key in counts) {
-            statHtml += `<div>${key}: <strong>${counts[key]}</strong>개 남음</div>`;
+            statHtml += `<div>${key}: <strong>${counts[key]}</strong>% 남음</div>`;
         }
         document.getElementById('rankStats').innerHTML = statHtml;
 
